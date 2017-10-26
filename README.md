@@ -20,7 +20,7 @@ npm update serverless-plugin-thundra-monitor-cw
 - `nodeModuleDir`: Configures the directory where the modules are installed. Default value is `$USER_HOME/node_modues`. This property is *mandatory*.
 
 Example configuration:
-```
+```yml
 custom:
   ...
   thundraAccessToken: myAccessToken
@@ -32,7 +32,7 @@ custom:
 You need to mark your functions by setting `thundraMonitoredOverCW` flag to be monitored over AWS CloudWatch.
 
 Example usage:
-```
+```yml
 functions:
   my-function:
       ...
