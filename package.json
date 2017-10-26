@@ -1,6 +1,6 @@
 {
   "name": "serverless-plugin-thundra-monitor-cw",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Attach a CloudWatch LogSubscription to your functions' logs to be collected by Thundra",
   "main": "index.js",
   "repository": {

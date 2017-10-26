@@ -160,11 +160,18 @@ module.exports = class ThundraMonitorCWPlugin {
                             PolicyName: "ThundraMonitorPutToFirehoseRole",
                             PolicyDocument: {
                                 Version : "2012-10-17",
-                                Statement: [{
-                                    Effect: "Allow",
-                                    Action: [ "firehose:PutRecord", "firehose:PutRecordBatch" ],
-                                    Resource: [ "arn:aws:firehose:" + thundraAwsRegion + ":" + thundraAwsAccountId + ":deliverystream/" + thundraMonitorDataStreamName ]
-                                }]
+                                Statement: [
+                                    {
+                                        Effect: "Allow",
+                                        Action: [ "firehose:PutRecord", "firehose:PutRecordBatch" ],
+                                        Resource: [ "arn:aws:firehose:" + thundraAwsRegion + ":" + thundraAwsAccountId + ":deliverystream/" + thundraMonitorDataStreamName ]
+                                    },
+                                    {
+                                        Effect: "Allow",
+                                        Action: [ "kinesis:PutRecord", "kinesis:PutRecords" ],
+                                        Resource: [ "arn:aws:kinesis:" + thundraAwsRegion + ":" + thundraAwsAccountId + ":stream/" + thundraMonitorDataStreamName ]
+                                    }
+                                ]
                             }
                         }
                     ]     
@@ -179,17 +186,17 @@ module.exports = class ThundraMonitorCWPlugin {
             const thundraMonitorFn = {
                 name: thundraMonitorFnName,
                 description: "Thundra Monitoring over CloudWatch Logs",
-                handler: "com.opsgenie.sirocco.monitor.handler.CloudWatchMonitoringDataHandler",
+                handler: "com.opsgenie.sirocco.thundra.monitor.cw.MonitorDataCloudWatchHandler",
                 role: thundraMonitorRoleName,
                 package: {
                     artifact: thundraMonitorCWArtifactPath
                 },
                 environment: {
-                    thundra_monitor_accessToken: thundraAccessToken,
-                    thundra_monitor_awsAccountId: thundraAwsAccountId,
-                    thundra_monitor_awsRegion: thundraAwsRegion,
-                    thundra_monitor_dataStreamName: thundraMonitorDataStreamName,
-                    thundra_monitor_dataStreamAccessAssumedRoleName: thundraMonitorDataStreamAccessAssumedRoleName
+                    thundra_accessToken: thundraAccessToken,
+                    thundra_awsAccountId: thundraAwsAccountId,
+                    thundra_awsRegion: thundraAwsRegion,
+                    thundra_dataStreamName: thundraMonitorDataStreamName,
+                    thundra_dataStreamAccessAssumedRoleName: thundraMonitorDataStreamAccessAssumedRoleName
                 },
                 events: []
             };
