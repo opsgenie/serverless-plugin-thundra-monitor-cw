@@ -18,13 +18,8 @@ module.exports = class ThundraMonitorCWPlugin {
 
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        var nodeModuleDir = require("os").homedir() + "/node_modules";
-        if (service.custom && service.custom.nodeModuleDir) {
-            nodeModuleDir = service.custom.nodeModuleDir;
-        }
-        const thundraMonitorCWArtifactPath = nodeModuleDir + "/serverless-plugin-thundra-monitor-cw/thundra-monitor-cw.jar";
-
-        cli.log("[THUNDRA] Using Thundra monitor CloudWatch artifact from " + thundraMonitorCWArtifactPath + " ...");
+        cli.log("[THUNDRA] Let the AWS Lambda Monitoring Begin ...");
+        cli.log("[THUNDRA] =======================================");
 
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -47,29 +42,6 @@ module.exports = class ThundraMonitorCWPlugin {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            const thundraMonitorFnName = "thundra-monitor-" + serviceName;
-            const thundraMonitorNormalizedFunctionName = aws.naming.getNormalizedFunctionName(thundraMonitorFnName);
-            const thundraMonitorLogGroupId = thundraMonitorNormalizedFunctionName + "LogGroup";
-            const thundraMonitorLogGroupName = "/aws/lambda/" + thundraMonitorFnName;
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-            cli.log("[THUNDRA] Adding log group " + thundraMonitorLogGroupName + " for Thundra monitor Lambda ...");
-
-            const thundraMonitorLogGroupResource = {
-                Type: "AWS::Logs::LogGroup",
-                Properties: {
-                    LogGroupName: thundraMonitorLogGroupName
-                }
-            };
-            template.Resources[thundraMonitorLogGroupId] = thundraMonitorLogGroupResource;
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-            const thundraMonitorRoleName = "ThundraMonitorRole";
-
-            cli.log("[THUNDRA] Adding " + thundraMonitorRoleName + " role for accessing Thundra account resources ...");
-
             var thundraAwsAccountId = "269863060030";
             if (service.custom && service.custom.thundraAwsAccountId) {
                 thundraAwsAccountId = service.custom.thundraAwsAccountId;
@@ -89,6 +61,43 @@ module.exports = class ThundraMonitorCWPlugin {
             if (service.custom && service.custom.thundraMonitorDataStreamAccessAssumedRoleName) {
                 thundraMonitorDataStreamAccessAssumedRoleName = service.custom.thundraMonitorDataStreamAccessAssumedRoleName;
             }
+
+            var thundraMonitorFunctionMemorySize = 512;
+            if (service.custom && service.custom.thundraMonitorFunctionMemorySize) {
+                thundraMonitorFunctionMemorySize = service.custom.thundraMonitorFunctionMemorySize;
+            }
+
+            var thundraMonitorFunctionTimeout = 300;
+            if (service.custom && service.custom.thundraMonitorFunctionTimeout) {
+                thundraMonitorFunctionTimeout = service.custom.thundraMonitorFunctionTimeout;
+            }
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            const thundraMonitorFnName = "thundra-monitor-" + serviceName;
+            const thundraMonitorNormalizedFunctionName = aws.naming.getNormalizedFunctionName(thundraMonitorFnName);
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            const thundraMonitorLogGroupResourceId = thundraMonitorNormalizedFunctionName + "LogGroup";
+            const thundraMonitorLogGroupName = "/aws/lambda/" + thundraMonitorFnName;
+
+            cli.log("[THUNDRA] Adding log group " + thundraMonitorLogGroupName + " for Thundra monitor Lambda ...");
+
+            const thundraMonitorLogGroupResource = {
+                Type: "AWS::Logs::LogGroup",
+                Properties: {
+                    LogGroupName: thundraMonitorLogGroupName
+                }
+            };
+            template.Resources[thundraMonitorLogGroupResourceId] = thundraMonitorLogGroupResource;
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            const thundraMonitorRoleResourceId = thundraMonitorNormalizedFunctionName + "Role";
+            const thundraMonitorRoleName = thundraMonitorFnName + "Role";
+
+            cli.log("[THUNDRA] Adding " + thundraMonitorRoleName + " role for accessing Thundra account resources ...");
 
             const targetLogGroups = [];
             targetLogGroups.push({
@@ -122,7 +131,7 @@ module.exports = class ThundraMonitorCWPlugin {
             const thundraMonitorRoleResource = {
                 Type: "AWS::IAM::Role",
                 Properties: {
-                    RoleName: "ThundraMonitorRole",
+                    RoleName: thundraMonitorRoleName,
                     AssumeRolePolicyDocument: {
                         Version: "2012-10-17",
                         Statement: [{
@@ -135,7 +144,7 @@ module.exports = class ThundraMonitorCWPlugin {
                     },
                     Policies: [
                         {
-                            PolicyName: "ThundraMonitorLogRole",
+                            PolicyName: thundraMonitorRoleName + "LogRole",
                             PolicyDocument: {
                                 Version : "2012-10-17",
                                 Statement: [{
@@ -146,7 +155,7 @@ module.exports = class ThundraMonitorCWPlugin {
                             }
                         },
                         {
-                            PolicyName: "ThundraMonitorAssumeRole",
+                            PolicyName: thundraMonitorRoleName + "AssumeRole",
                             PolicyDocument: {
                                 Version : "2012-10-17",
                                 Statement: [{
@@ -157,7 +166,7 @@ module.exports = class ThundraMonitorCWPlugin {
                             }
                         },
                         {
-                            PolicyName: "ThundraMonitorPutToFirehoseRole",
+                            PolicyName: thundraMonitorRoleName + "PutToFirehoseRole",
                             PolicyDocument: {
                                 Version : "2012-10-17",
                                 Statement: [
@@ -177,30 +186,57 @@ module.exports = class ThundraMonitorCWPlugin {
                     ]     
                 }
             };
-            template.Resources[thundraMonitorRoleName] = thundraMonitorRoleResource;
+            template.Resources[thundraMonitorRoleResourceId] = thundraMonitorRoleResource;
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
             cli.log("[THUNDRA] Adding Thundra monitor Lambda function ...");
 
-            const thundraMonitorFn = {
-                name: thundraMonitorFnName,
-                description: "Thundra Monitoring over CloudWatch Logs",
-                handler: "com.opsgenie.sirocco.thundra.monitor.cw.MonitorDataCloudWatchHandler",
-                role: thundraMonitorRoleName,
-                package: {
-                    artifact: thundraMonitorCWArtifactPath
+            const thundraMonitorFnResourceId = thundraMonitorNormalizedFunctionName;
+            const thundraMonitorFnResource = {
+                Type: "AWS::Lambda::Function",
+                Properties: {
+                    FunctionName: thundraMonitorFnName,
+                    Description: "Thundra Monitoring over CloudWatch Logs",
+                    Handler: "com.opsgenie.sirocco.thundra.monitor.cw.MonitorDataCloudWatchHandler",
+                    Role: {
+                        "Fn::Join": [
+                            "", 
+                            [ 
+                                "arn:aws:iam::", 
+                                { "Ref": "AWS::AccountId" }, 
+                                ":role/" + thundraMonitorRoleName 
+                            ]
+                         ]
+                    },
+                    MemorySize: thundraMonitorFunctionMemorySize,
+                    Runtime: "java8",
+                    Timeout: thundraMonitorFunctionTimeout,
+                    Code: {
+                        S3Bucket: {
+                            "Fn::Join": [
+                                "", 
+                                [ 
+                                    "thundra-dist-", 
+                                    { "Ref": "AWS::Region" }
+                                ]
+                             ]
+                        },
+                        S3Key: "thundra-monitor-cw.jar"
+                    },
+                    Environment: {
+                        Variables: {
+                            thundra_accessToken: thundraAccessToken,
+                            thundra_awsAccountId: thundraAwsAccountId,
+                            thundra_awsRegion: thundraAwsRegion,
+                            thundra_dataStreamName: thundraMonitorDataStreamName,
+                            thundra_dataStreamAccessAssumedRoleName: thundraMonitorDataStreamAccessAssumedRoleName
+                        }
+                    }
                 },
-                environment: {
-                    thundra_accessToken: thundraAccessToken,
-                    thundra_awsAccountId: thundraAwsAccountId,
-                    thundra_awsRegion: thundraAwsRegion,
-                    thundra_dataStreamName: thundraMonitorDataStreamName,
-                    thundra_dataStreamAccessAssumedRoleName: thundraMonitorDataStreamAccessAssumedRoleName
-                },
-                events: []
-            };
-            functions[thundraMonitorFnName] = thundraMonitorFn;
+                DependsOn: [ thundraMonitorRoleResourceId ]
+            }      
+            template.Resources[thundraMonitorFnResourceId] = thundraMonitorFnResource;  
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -210,7 +246,7 @@ module.exports = class ThundraMonitorCWPlugin {
 
                 if (thundraMonitorEnabled == true) {
                     const normalizedFunctionName = aws.naming.getNormalizedFunctionName(functionName);
-                    const logGroupId = normalizedFunctionName + "LogGroup";
+                    const logGroupResourceId = normalizedFunctionName + "LogGroup";
                     const logGroupName = "/aws/lambda/" + functionName;
 
                     ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -223,21 +259,87 @@ module.exports = class ThundraMonitorCWPlugin {
                             LogGroupName: logGroupName
                         }
                     };
-                    template.Resources[logGroupId] = logGroupResource;
+                    template.Resources[logGroupResourceId] = logGroupResource;
+
+                    ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+                    cli.log("[THUNDRA] Adding log group permission for log group " + logGroupName + " ...");
+
+                    const lambdaLogGroupPermissionResourceId = normalizedFunctionName + "LogGroupPermission";
+                    const lambdaLogGroupPermissionResource = {
+                        Type: "AWS::Lambda::Permission",
+                        Properties: {
+                            Action: "lambda:InvokeFunction",
+                            FunctionName: {
+                                "Fn::Join": [
+                                    "", 
+                                    [ 
+                                        "arn:aws:lambda:", 
+                                        { "Ref": "AWS::Region" }, 
+                                        ":", 
+                                        { "Ref": "AWS::AccountId" }, 
+                                        ":function:" + thundraMonitorFnName 
+                                    ]
+                                ]
+                            },
+                            Principal: {
+                                "Fn::Join": [ 
+                                    "", 
+                                    [
+                                        "logs.", 
+                                        { "Ref": "AWS::Region" }, 
+                                        ".amazonaws.com"
+                                    ] 
+                                ]
+                            },
+                            SourceAccount: { "Ref": "AWS::AccountId" },
+                            SourceArn: {
+                                "Fn::Join": [
+                                    "", 
+                                    [ 
+                                        "arn:aws:logs:", 
+                                        { "Ref": "AWS::Region" }, 
+                                        ":", 
+                                        { "Ref": "AWS::AccountId" }, 
+                                        ":log-group:" + logGroupName + ":*" 
+                                    ]
+                                ]
+                            }
+                        },
+                        DependsOn: [ thundraMonitorFnResourceId, logGroupResourceId ]   
+                    }
+                    template.Resources[lambdaLogGroupPermissionResourceId] = lambdaLogGroupPermissionResource;
 
                     ///////////////////////////////////////////////////////////////////////////////////////////////////
 
                     cli.log("[THUNDRA] Adding log subscription for log group " + logGroupName + " ...");
 
-                    const logGroupSubscription = {
-                        cloudwatchLog: {
-                            logGroup: logGroupName,
-                            filter: '{$.type = AuditData || $.type = MonitoredLog || $.type = StatData}'
-                        }
-                    };
-                    thundraMonitorFn.events.push(logGroupSubscription);
+                    const logGroupSubscriptionId = aws.naming.getNormalizedFunctionName(functionName + "Subscription");
+                    const logGroupSubscriptionResource = {
+                        Type : "AWS::Logs::SubscriptionFilter",
+                        Properties: {
+                            DestinationArn: {
+                                "Fn::Join": [
+                                    "", 
+                                    [ 
+                                        "arn:aws:lambda:", 
+                                        { "Ref": "AWS::Region" }, 
+                                        ":", 
+                                        { "Ref": "AWS::AccountId" }, 
+                                        ":function:" + thundraMonitorFnName 
+                                    ]
+                                ]
+                            },
+                            FilterPattern: '{$.type = AuditData || $.type = MonitoredLog || $.type = StatData}',
+                            LogGroupName: logGroupName,
+                        },
+                        DependsOn: [ thundraMonitorFnResourceId, logGroupResourceId, lambdaLogGroupPermissionResourceId ]
+                    }
+                    template.Resources[logGroupSubscriptionId] = logGroupSubscriptionResource;
                 }
             });
+
+            cli.log("[THUNDRA] =======================================");
         }
     }
 
