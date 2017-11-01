@@ -11,6 +11,31 @@ module.exports = class ThundraMonitorCWPlugin {
     }
 
     beforeDeployCreateDeploymentArtifacts() {
+        const me = this;
+        const service = this.serverless.service;
+        const aws = this.serverless.getProvider('aws');
+        const stage = aws.options.stage;
+        const region = aws.options.region;
+        return aws.request(
+                "S3",
+                "listObjectVersions",
+                {
+                    Bucket: "thundra-dist-" + region,
+                    Prefix: "thundra-monitor-cw.jar",
+                },
+                stage,
+                region)
+            .then(function(response, err) {
+                    if (err) {
+                        throw new me.serverless.classes.Error(err.message);
+                    }
+                    var thundraMonitorArtifactLatestVersionId = response.Versions[0].VersionId;
+                    me.beforeDeployCreateDeploymentArtifacts0(thundraMonitorArtifactLatestVersionId);
+                }
+            );
+    }
+
+    beforeDeployCreateDeploymentArtifacts0(thundraMonitorArtifactLatestVersionId) {
         const cli = this.serverless.cli;
         const service = this.serverless.service;
         const serviceName = service.service;
@@ -19,7 +44,8 @@ module.exports = class ThundraMonitorCWPlugin {
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         cli.log("[THUNDRA] Let the AWS Lambda Monitoring Begin ...");
-        cli.log("[THUNDRA] =======================================");
+        cli.log("[THUNDRA] =====================================================================");
+        cli.log("[THUNDRA] Using Thundra Monitor artifact with version id " + thundraMonitorArtifactLatestVersionId + " ...");
 
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -193,12 +219,13 @@ module.exports = class ThundraMonitorCWPlugin {
             cli.log("[THUNDRA] Adding Thundra monitor Lambda function ...");
 
             const thundraMonitorFnResourceId = thundraMonitorNormalizedFunctionName;
+            const date = new Date();
             const thundraMonitorFnResource = {
                 Type: "AWS::Lambda::Function",
                 Properties: {
                     FunctionName: thundraMonitorFnName,
                     Description: "Thundra Monitoring over CloudWatch Logs",
-                    Handler: "com.opsgenie.sirocco.thundra.monitor.cw.MonitorDataCloudWatchHandler",
+                    Handler: "com.opsgenie.thundra.monitor.cw.MonitorDataCloudWatchHandler",
                     Role: {
                         "Fn::Join": [
                             "", 
@@ -222,7 +249,8 @@ module.exports = class ThundraMonitorCWPlugin {
                                 ]
                              ]
                         },
-                        S3Key: "thundra-monitor-cw.jar"
+                        S3Key: "thundra-monitor-cw.jar",
+                        S3ObjectVersion: thundraMonitorArtifactLatestVersionId
                     },
                     Environment: {
                         Variables: {
@@ -230,13 +258,26 @@ module.exports = class ThundraMonitorCWPlugin {
                             thundra_awsAccountId: thundraAwsAccountId,
                             thundra_awsRegion: thundraAwsRegion,
                             thundra_dataStreamName: thundraMonitorDataStreamName,
-                            thundra_dataStreamAccessAssumedRoleName: thundraMonitorDataStreamAccessAssumedRoleName
+                            thundra_dataStreamAccessAssumedRoleName: thundraMonitorDataStreamAccessAssumedRoleName,
+                            thundra_deployTime: date
                         }
                     }
                 },
                 DependsOn: [ thundraMonitorRoleResourceId ]
             }      
             template.Resources[thundraMonitorFnResourceId] = thundraMonitorFnResource;  
+
+            const thundraMonitorFnVersionResourceId = thundraMonitorNormalizedFunctionName + "Version";
+            const thundraMonitorFnVersionResource = {
+                Type: "AWS::Lambda::Version",
+                DeletionPolicy: "Retain",
+                Properties: {          
+                    FunctionName: {
+                        Ref: thundraMonitorFnResourceId
+                    }
+                }
+            }
+            template.Resources[thundraMonitorFnVersionResourceId] = thundraMonitorFnVersionResource;  
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -339,7 +380,7 @@ module.exports = class ThundraMonitorCWPlugin {
                 }
             });
 
-            cli.log("[THUNDRA] =======================================");
+            cli.log("[THUNDRA] =====================================================================");
         }
     }
 
