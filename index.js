@@ -181,6 +181,27 @@ module.exports = class ThundraMonitorCWPlugin {
                             }
                         },
                         {
+                            PolicyName: thundraMonitorRoleName + "S3Role",
+                            PolicyDocument: {
+                                Version : "2012-10-17",
+                                Statement: [{
+                                    Effect: "Allow",
+                                    Action: "s3:GetObject",
+                                    Resource: {
+                                        "Fn::Join": [
+                                            "", 
+                                            [ 
+                                                "arn:aws:s3:::",
+                                                "thundra-dist-", 
+                                                { "Ref": "AWS::Region" },
+                                                "/thundra-monitor-cw-conf.properties"
+                                            ]
+                                         ]
+                                    }
+                                }]
+                            }
+                        },
+                        {
                             PolicyName: thundraMonitorRoleName + "AssumeRole",
                             PolicyDocument: {
                                 Version : "2012-10-17",
@@ -192,7 +213,7 @@ module.exports = class ThundraMonitorCWPlugin {
                             }
                         },
                         {
-                            PolicyName: thundraMonitorRoleName + "PutToFirehoseRole",
+                            PolicyName: thundraMonitorRoleName + "PutToStreamRole",
                             PolicyDocument: {
                                 Version : "2012-10-17",
                                 Statement: [
