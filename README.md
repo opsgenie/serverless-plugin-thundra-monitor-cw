@@ -24,7 +24,7 @@ Example configuration:
 ```yml
 custom:
   ...
-  thundraAccessToken: myAccessToken
+  thundraApiKey: <my-api-key>
   ...
 ```
 
