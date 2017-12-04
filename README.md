@@ -16,7 +16,7 @@ npm update serverless-plugin-thundra-monitor-cw
 
 ## Configuration
 
-- `thundraAccessToken`: Specifies your access token to be used for sending your monitor data to our side. This property is *mandatory*.
+- `thundraApiKey`: Specifies your API key to be used for sending your monitor data to our side. This property is *mandatory*.
 - `thundraMonitorFunctionMemorySize`: Configures the memory size in MB of the Lambda function which collects monitor data over CloudWatch. This property is *optional*. Default value is `512` MB.
 - `thundraMonitorFunctionTimeout`: Configures the timeout in milliseconds of the Lambda function which collects monitor data over CloudWatch. This property is *optional*. Default value is `300` seconds (5 minutes).
 
