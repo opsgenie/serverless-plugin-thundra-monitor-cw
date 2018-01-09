@@ -49,14 +49,14 @@ module.exports = class ThundraMonitorCWPlugin {
 
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        var thundraAccessToken = null;
-        if (service.custom && service.custom.thundraAccessToken) {
-            thundraAccessToken = service.custom.thundraAccessToken;
+        var thundraApiKey = null;
+        if (service.custom && service.custom.thundraApiKey) {
+            thundraApiKey = service.custom.thundraApiKey;
         }
         
-        if (thundraAccessToken == null) {
+        if (thundraApiKey == null) {
             throw new Error(
-                "[THUNDRA] Thundra access token must be provided by 'thundraAccessToken' variable " +
+                "[THUNDRA] Thundra API key must be provided by 'thundraApiKey' variable " +
                 "on 'custom' property!");
         }
 
@@ -86,6 +86,16 @@ module.exports = class ThundraMonitorCWPlugin {
             var thundraMonitorDataStreamAccessAssumedRoleName = "monitorDataStream_putAccess";
             if (service.custom && service.custom.thundraMonitorDataStreamAccessAssumedRoleName) {
                 thundraMonitorDataStreamAccessAssumedRoleName = service.custom.thundraMonitorDataStreamAccessAssumedRoleName;
+            }
+
+            var thundraMonitorDataLambdaName = "thundra-collector-lambda";
+            if (service.custom && service.custom.thundraMonitorDataLambdaName) {
+                thundraMonitorDataLambdaName = service.custom.thundraMonitorDataLambdaName;
+            }
+
+            var thundraMonitorDataLambdaAccessAssumedRoleName = "monitorDataLambda_invokeAccess";
+            if (service.custom && service.custom.thundraMonitorDataLambdaAccessAssumedRoleName) {
+                thundraMonitorDataLambdaAccessAssumedRoleName = service.custom.thundraMonitorDataLambdaAccessAssumedRoleName;
             }
 
             var thundraMonitorFunctionMemorySize = 512;
@@ -205,11 +215,18 @@ module.exports = class ThundraMonitorCWPlugin {
                             PolicyName: thundraMonitorRoleName + "AssumeRole",
                             PolicyDocument: {
                                 Version : "2012-10-17",
-                                Statement: [{
-                                    Effect: "Allow",
-                                    Action: "sts:AssumeRole",
-                                    Resource: [ "arn:aws:iam::" + thundraAwsAccountId + ":role/" + thundraMonitorDataStreamAccessAssumedRoleName ]
-                                }]
+                                Statement: [
+                                    {
+                                        Effect: "Allow",
+                                        Action: "sts:AssumeRole",
+                                        Resource: [ "arn:aws:iam::" + thundraAwsAccountId + ":role/" + thundraMonitorDataStreamAccessAssumedRoleName ]
+                                    },
+                                    {
+                                        Effect: "Allow",
+                                        Action: "sts:AssumeRole",
+                                        Resource: [ "arn:aws:iam::" + thundraAwsAccountId + ":role/" + thundraMonitorDataLambdaAccessAssumedRoleName ]
+                                    }
+                                ]
                             }
                         },
                         {
@@ -226,6 +243,19 @@ module.exports = class ThundraMonitorCWPlugin {
                                         Effect: "Allow",
                                         Action: [ "kinesis:PutRecord", "kinesis:PutRecords" ],
                                         Resource: [ "arn:aws:kinesis:" + thundraAwsRegion + ":" + thundraAwsAccountId + ":stream/" + thundraMonitorDataStreamName ]
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            PolicyName: thundraMonitorRoleName + "InvokeLambdaRole",
+                            PolicyDocument: {
+                                Version : "2012-10-17",
+                                Statement: [
+                                    {
+                                        Effect: "Allow",
+                                        Action: [ "lambda:InvokeFunction" ],
+                                        Resource: [ "arn:aws:lambda:" + thundraAwsRegion + ":" + thundraAwsAccountId + ":function:" + thundraMonitorDataLambdaName ]
                                     }
                                 ]
                             }
@@ -275,11 +305,13 @@ module.exports = class ThundraMonitorCWPlugin {
                     },
                     Environment: {
                         Variables: {
-                            thundra_accessToken: thundraAccessToken,
+                            thundra_apiKey: thundraApiKey,
                             thundra_awsAccountId: thundraAwsAccountId,
                             thundra_awsRegion: thundraAwsRegion,
                             thundra_dataStreamName: thundraMonitorDataStreamName,
                             thundra_dataStreamAccessAssumedRoleName: thundraMonitorDataStreamAccessAssumedRoleName,
+                            thundra_dataLambdaName: thundraMonitorDataLambdaName,
+                            thundra_dataLambdaAccessAssumedRoleName: thundraMonitorDataLambdaAccessAssumedRoleName,
                             thundra_deployTime: date
                         }
                     }
