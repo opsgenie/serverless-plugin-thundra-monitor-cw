@@ -49,15 +49,9 @@ module.exports = class ThundraMonitorCWPlugin {
 
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        var thundraApiKey = null;
+        var thundraApiKey = "N/A";
         if (service.custom && service.custom.thundraApiKey) {
             thundraApiKey = service.custom.thundraApiKey;
-        }
-        
-        if (thundraApiKey == null) {
-            throw new Error(
-                "[THUNDRA] Thundra API key must be provided by 'thundraApiKey' variable " +
-                "on 'custom' property!");
         }
 
         if (functions) {
@@ -108,9 +102,14 @@ module.exports = class ThundraMonitorCWPlugin {
                 thundraMonitorFunctionTimeout = service.custom.thundraMonitorFunctionTimeout;
             }
 
+            var skipAllLogGroupCreations = false;
+            if (service.custom && service.custom.skipAllLogGroupCreations) {
+                skipAllLogGroupCreations = service.custom.skipAllLogGroupCreations;
+            }
+
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            const thundraMonitorFnName = "thundra-monitor-" + serviceName;
+            const thundraMonitorFnName = "thundra-monitor-cw-" + serviceName;
             const thundraMonitorNormalizedFunctionName = aws.naming.getNormalizedFunctionName(thundraMonitorFnName);
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -336,30 +335,46 @@ module.exports = class ThundraMonitorCWPlugin {
 
             Object.keys(functions).forEach(functionName => {
                 const fn = functions[functionName];
+                var fnName = functionName;
+                if (fn.name) {
+                    fnName = fn.name;
+                }
                 const thundraMonitorEnabled = fn.thundraMonitoredOverCW;
+                var skipLogGroupCreation = fn.skipLogGroupCreation;
+                if (skipAllLogGroupCreations == true) {
+                    skipLogGroupCreation = true;
+                } 
 
                 if (thundraMonitorEnabled == true) {
-                    const normalizedFunctionName = aws.naming.getNormalizedFunctionName(functionName);
+                    const normalizedFunctionName = aws.naming.getNormalizedFunctionName(fnName);
                     const logGroupResourceId = normalizedFunctionName + "LogGroup";
-                    const logGroupName = "/aws/lambda/" + functionName;
+                    const logGroupName = "/aws/lambda/" + fnName;
 
                     ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-                    cli.log("[THUNDRA] Adding log group " + logGroupName + " for Lambda function " + functionName + " ...");
+                    if (skipLogGroupCreation != true) {
+                        cli.log("[THUNDRA] Adding log group " + logGroupName + " for Lambda function " + fnName + " ...");
 
-                    const logGroupResource = {
-                        Type: "AWS::Logs::LogGroup",
-                        Properties: {
-                            LogGroupName: logGroupName
-                        }
-                    };
-                    template.Resources[logGroupResourceId] = logGroupResource;
+                        const logGroupResource = {
+                            Type: "AWS::Logs::LogGroup",
+                            Properties: {
+                                LogGroupName: logGroupName
+                            }
+                        };
+                        template.Resources[logGroupResourceId] = logGroupResource;
+                    } else {
+                        cli.log("[THUNDRA] Skipping log group " + logGroupName + " creationg for Lambda function " + fnName + " ...");
+                    }
 
                     ///////////////////////////////////////////////////////////////////////////////////////////////////
 
                     cli.log("[THUNDRA] Adding log group permission for log group " + logGroupName + " ...");
 
                     const lambdaLogGroupPermissionResourceId = normalizedFunctionName + "LogGroupPermission";
+                    const lambdaLogGroupPermissionResourceDepdendencies = [ thundraMonitorFnResourceId ];
+                    if (skipLogGroupCreation != true) {
+                        lambdaLogGroupPermissionResourceDepdendencies.push(logGroupResourceId);
+                    }    
                     const lambdaLogGroupPermissionResource = {
                         Type: "AWS::Lambda::Permission",
                         Properties: {
@@ -400,7 +415,7 @@ module.exports = class ThundraMonitorCWPlugin {
                                 ]
                             }
                         },
-                        DependsOn: [ thundraMonitorFnResourceId, logGroupResourceId ]   
+                        DependsOn: lambdaLogGroupPermissionResourceDepdendencies  
                     }
                     template.Resources[lambdaLogGroupPermissionResourceId] = lambdaLogGroupPermissionResource;
 
@@ -408,7 +423,11 @@ module.exports = class ThundraMonitorCWPlugin {
 
                     cli.log("[THUNDRA] Adding log subscription for log group " + logGroupName + " ...");
 
-                    const logGroupSubscriptionId = aws.naming.getNormalizedFunctionName(functionName + "Subscription");
+                    const logGroupSubscriptionId = aws.naming.getNormalizedFunctionName(fnName + "Subscription");
+                    const logGroupSubscriptionResourceDepdendencies = [ thundraMonitorFnResourceId, lambdaLogGroupPermissionResourceId ];
+                    if (skipLogGroupCreation != true) {
+                        logGroupSubscriptionResourceDepdendencies.push(logGroupResourceId);
+                    }  
                     const logGroupSubscriptionResource = {
                         Type : "AWS::Logs::SubscriptionFilter",
                         Properties: {
@@ -427,7 +446,7 @@ module.exports = class ThundraMonitorCWPlugin {
                             FilterPattern: '{$.type = AuditData || $.type = MonitoredLog || $.type = StatData}',
                             LogGroupName: logGroupName,
                         },
-                        DependsOn: [ thundraMonitorFnResourceId, logGroupResourceId, lambdaLogGroupPermissionResourceId ]
+                        DependsOn: logGroupSubscriptionResourceDepdendencies
                     }
                     template.Resources[logGroupSubscriptionId] = logGroupSubscriptionResource;
                 }
