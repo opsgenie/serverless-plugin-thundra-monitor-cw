@@ -38,14 +38,14 @@ functions:
   ...    
 ```
 
-- `skipGroupCreation`: *Optionally* log group creation for the specific function can be disabled by this flag.
+- `skipLogGroupCreation`: *Optionally* log group creation for the specific function can be disabled by this flag.
 
 Example usage:
 ```yml
 functions:
   my-function:
       ...
-      skipGroupCreation: true
+      skipLogGroupCreation: true
       ...
   ...    
 ```
